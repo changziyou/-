@@ -4,7 +4,9 @@ export enum EntityType {
   PLATFORM = 'PLATFORM',
   PORTAL = 'PORTAL',
   PARTICLE = 'PARTICLE',
-  ATTACK_HITBOX = 'ATTACK_HITBOX'
+  ATTACK_HITBOX = 'ATTACK_HITBOX',
+  PROJECTILE = 'PROJECTILE',
+  ITEM = 'ITEM'
 }
 
 export enum GameState {
@@ -14,6 +16,8 @@ export enum GameState {
   GAME_OVER = 'GAME_OVER',
   ORACLE = 'ORACLE' // Talking to Gemini
 }
+
+export type ItemType = 'HEALTH' | 'RANGE_BOOST' | 'RANGED_WEAPON';
 
 export interface Vector {
   x: number;
@@ -32,14 +36,24 @@ export interface Entity {
   isDead?: boolean;
   facing?: number; // 1 right, -1 left
   // For enemies
-  aiState?: 'IDLE' | 'CHASE' | 'ATTACK';
+  aiState?: 'IDLE' | 'CHASE' | 'ATTACK' | 'FLEE';
   patrolStart?: number;
   patrolEnd?: number;
-  // For particles
+  attackCooldown?: number;
+  // For particles/projectiles
   life?: number;
   maxLife?: number;
-  // For player movement
+  owner?: string; // 'player' or 'enemy'
+  damage?: number;
+  // For player movement & combat
   jumpsRemaining?: number;
+  isParrying?: boolean;
+  parryTimer?: number;
+  parryDirection?: 'FWD' | 'UP';
+  attackRangeBonus?: number;
+  hasRangedWeapon?: boolean;
+  // For items
+  itemType?: ItemType;
 }
 
 export interface Room {
@@ -49,7 +63,7 @@ export interface Room {
   entities: Entity[];
   width: number;
   height: number;
-  theme: 'dungeon' | 'tower' | 'void';
+  theme: 'dungeon' | 'tower' | 'void' | 'cistern' | 'summit' | 'volcano';
 }
 
 export interface LogEntry {

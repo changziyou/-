@@ -9,6 +9,7 @@ import {
     COLOR_ENEMY_BAT, 
     COLOR_ENEMY_SLIME,
     COLOR_ENEMY_GHOST,
+    COLOR_ENEMY_MAGE,
     ROOM_THEME_COLORS 
 } from './constants';
 import { generateLore, generateBossTaunt } from './services/geminiService';
@@ -81,9 +82,46 @@ const createRoom4 = (): Room => ({
       { id: 'e1', type: EntityType.ENEMY, pos: { x: 200, y: 200 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_GHOST, hp: 50 },
       { id: 'e2', type: EntityType.ENEMY, pos: { x: 500, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_GHOST, hp: 50 },
     ]
-  });
+});
 
-const ROOM_GENERATORS = [createRoom1, createRoom2, createRoom3, createRoom4];
+const createRoom5 = (): Room => ({
+    id: 'room_sanctum',
+    name: '黑曜石圣所 (Obsidian Sanctum)',
+    description: 'Ancient magic pulses through the dark stone.',
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT,
+    theme: 'volcano',
+    entities: [
+        { id: 'p1', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 200, y: 50 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'p2', type: EntityType.PLATFORM, pos: { x: 300, y: 450 }, size: { x: 200, y: 20 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'p3', type: EntityType.PLATFORM, pos: { x: 600, y: 350 }, size: { x: 200, y: 20 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'e1', type: EntityType.ENEMY, pos: { x: 350, y: 410 }, size: { x: 32, y: 48 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 60 },
+        { id: 'e2', type: EntityType.ENEMY, pos: { x: 650, y: 310 }, size: { x: 32, y: 48 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 60 },
+        { id: 'e3', type: EntityType.ENEMY, pos: { x: 100, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_GHOST, hp: 50 },
+    ]
+});
+
+const createRoom6 = (): Room => ({
+    id: 'room_abyss',
+    name: '深渊之巅 (The Abyssal Peak)',
+    description: 'The void stares back.',
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT,
+    theme: 'void',
+    entities: [
+        { id: 'p1', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 100, y: 50 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'p2', type: EntityType.PLATFORM, pos: { x: 150, y: 450 }, size: { x: 50, y: 20 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'p3', type: EntityType.PLATFORM, pos: { x: 250, y: 350 }, size: { x: 50, y: 20 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'p4', type: EntityType.PLATFORM, pos: { x: 350, y: 250 }, size: { x: 100, y: 20 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'p5', type: EntityType.PLATFORM, pos: { x: 550, y: 250 }, size: { x: 100, y: 20 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'p6', type: EntityType.PLATFORM, pos: { x: 700, y: 550 }, size: { x: 100, y: 50 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+        { id: 'e1', type: EntityType.ENEMY, pos: { x: 400, y: 200 }, size: { x: 32, y: 48 }, vel: {x:0, y:0}, color: COLOR_ENEMY_SKELETON, hp: 100, patrolStart: 350, patrolEnd: 450 },
+        { id: 'e2', type: EntityType.ENEMY, pos: { x: 200, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 80 },
+        { id: 'e3', type: EntityType.ENEMY, pos: { x: 600, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 80 },
+    ]
+});
+
+const ROOM_GENERATORS = [createRoom1, createRoom2, createRoom3, createRoom4, createRoom5, createRoom6];
 
 // --- Main App ---
 
@@ -107,6 +145,11 @@ const App: React.FC = () => {
     currentRoomRef.current = newRoom;
     setCurrentRoomName(newRoom.name);
     addLog('System', `Entering ${newRoom.name}...`);
+    
+    // Hint for difficulty increase
+    if (nextIndex === 4) {
+        addLog('System', 'WARNING: Enemies have grown stronger.');
+    }
   };
 
   const updateStats = (hp: number, maxHp: number, score: number) => {
@@ -186,6 +229,9 @@ const App: React.FC = () => {
         <p>[A/D] Move</p>
         <p>[SPACE] Jump (x2)</p>
         <p>[L-CLICK] Attack</p>
+        <p>[R-CLICK] Parry (Forward)</p>
+        <p>[W + R-CLICK] Parry (Upward)</p>
+        <p>[F] Shoot (Need Item)</p>
         <p>[S + L-CLICK] Down Attack</p>
         <p>[W + L-CLICK] Up Attack</p>
         <p>[H] Consult Spirits</p>
@@ -200,6 +246,7 @@ const App: React.FC = () => {
           onRoomChange={handleRoomChange}
           currentRoomRef={currentRoomRef}
           onOracleTrigger={handleOracleTrigger}
+          difficultyLevel={currentRoomIndex}
         />
 
         {/* Start Screen */}
