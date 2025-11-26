@@ -6,7 +6,8 @@ export enum EntityType {
   PARTICLE = 'PARTICLE',
   ATTACK_HITBOX = 'ATTACK_HITBOX',
   PROJECTILE = 'PROJECTILE',
-  ITEM = 'ITEM'
+  ITEM = 'ITEM',
+  NPC = 'NPC'
 }
 
 export enum GameState {
@@ -15,10 +16,11 @@ export enum GameState {
   PAUSED = 'PAUSED',
   GAME_OVER = 'GAME_OVER',
   ORACLE = 'ORACLE', // Talking to Gemini
-  PROMOTION = 'PROMOTION' // Selecting talents
+  PROMOTION = 'PROMOTION', // Selecting talents
+  SHOP = 'SHOP' // Buying items
 }
 
-export type ItemType = 'HEALTH' | 'RANGE_BOOST' | 'RANGED_WEAPON';
+export type ItemType = 'HEALTH' | 'RANGE_BOOST' | 'RANGED_WEAPON' | 'COIN';
 
 export type TalentID = 
   | 'WARRIOR_THORNS' 
@@ -50,6 +52,7 @@ export interface Entity {
   patrolEnd?: number;
   attackCooldown?: number;
   damage?: number; // Damage this entity deals
+  isBoss?: boolean; // Blocks exit until dead
   // For particles/projectiles
   life?: number;
   maxLife?: number;
@@ -62,6 +65,7 @@ export interface Entity {
   attackRangeBonus?: number;
   damageBonus?: number; // Added for progression
   hasRangedWeapon?: boolean;
+  gold?: number; // Player gold
   // Talents
   thorns?: number; // Percentage 0-1
   lifestealBonus?: number; // Flat HP
@@ -70,6 +74,7 @@ export interface Entity {
   projectileCount?: number; // Multishot
   // For items
   itemType?: ItemType;
+  value?: number; // For coins
 }
 
 export interface Room {
@@ -79,11 +84,11 @@ export interface Room {
   entities: Entity[];
   width: number;
   height: number;
-  theme: 'dungeon' | 'tower' | 'void' | 'cistern' | 'summit' | 'volcano';
+  theme: 'dungeon' | 'tower' | 'void' | 'cistern' | 'summit' | 'volcano' | 'merchant';
 }
 
 export interface LogEntry {
-  sender: 'System' | 'Oracle' | 'Player';
+  sender: 'System' | 'Oracle' | 'Player' | 'Merchant';
   text: string;
   timestamp: number;
 }

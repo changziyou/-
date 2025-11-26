@@ -24,6 +24,8 @@ import {
   COLOR_ENEMY_SLIME,
   COLOR_ENEMY_GHOST,
   COLOR_ENEMY_MAGE,
+  COLOR_ENEMY_BOSS,
+  COLOR_NPC_MERCHANT,
   COLOR_ATTACK,
   COLOR_PROJECTILE_ENEMY,
   COLOR_PROJECTILE_PLAYER,
@@ -32,6 +34,7 @@ import {
   COLOR_ITEM_HEALTH,
   COLOR_ITEM_RANGE,
   COLOR_ITEM_WEAPON,
+  COLOR_COIN,
   ROOM_THEME_COLORS,
   THEME_BLOCK_MAP,
   TILE_SIZE
@@ -40,12 +43,13 @@ import {
 interface GameCanvasProps {
   gameState: GameState;
   setGameState: (state: GameState) => void;
-  onUpdateStats: (hp: number, maxHp: number, score: number) => void;
+  onUpdateStats: (hp: number, maxHp: number, score: number, gold: number) => void;
   onRoomChange: (roomName: string) => void;
   currentRoomRef: React.MutableRefObject<Room>;
   onOracleTrigger: () => void;
   difficultyLevel: number;
   activeTalent: TalentID | null;
+  purchasedItem: ItemType | null; // Trigger from App to Canvas
 }
 
 const checkCollision = (r1: Entity, r2: Entity): boolean => {
@@ -65,7 +69,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   currentRoomRef,
   onOracleTrigger,
   difficultyLevel,
-  activeTalent
+  activeTalent,
+  purchasedItem
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
@@ -88,6 +93,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     attackRangeBonus: 0,
     damageBonus: 0,
     hasRangedWeapon: false,
+    gold: 0,
     thorns: 0,
     lifestealBonus: 0,
     rangedCooldownMult: 1,
@@ -103,6 +109,20 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const lastAttackDirRef = useRef<'FWD' | 'UP' | 'DOWN'>('FWD');
   const parryCooldownRef = useRef<number>(0);
   const roomChangeRef = useRef<string>('');
+
+  // Handle purchased items from Shop UI
+  useEffect(() => {
+    if (!purchasedItem) return;
+    const player = playerRef.current;
+    if (purchasedItem === 'HEALTH') {
+        player.hp = player.maxHp || 100;
+    } else if (purchasedItem === 'RANGE_BOOST') {
+        player.attackRangeBonus = (player.attackRangeBonus || 0) + 20;
+    } else if (purchasedItem === 'RANGED_WEAPON') {
+         // Re-purposed as Damage Boost in shop since weapon is middle click default now
+         player.damageBonus = (player.damageBonus || 0) + 10;
+    }
+  }, [purchasedItem]);
 
   useEffect(() => {
     if (!activeTalent) return;
@@ -189,7 +209,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const performShoot = useCallback(() => {
      const player = playerRef.current;
-     if (!player.hasRangedWeapon) return;
+     // Allow shooting by default now as Middle Click is standard
      if ((player.attackCooldown || 0) > 0) return;
 
      const cd = Math.floor(25 * (player.rangedCooldownMult || 1));
@@ -247,13 +267,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (e.repeat) return;
       if (gameState === GameState.PLAYING) {
           if (e.code === 'KeyH') onOracleTrigger();
+          
+          // NPC Interaction
+          if (e.code === 'KeyW') {
+              const player = playerRef.current;
+              const merchant = currentRoomRef.current.entities.find(en => en.type === EntityType.NPC);
+              if (merchant) {
+                  const dist = Math.abs(player.pos.x - merchant.pos.x);
+                  if (dist < 60 && Math.abs(player.pos.y - merchant.pos.y) < 50) {
+                      setGameState(GameState.SHOP);
+                      return;
+                  }
+              }
+          }
+
           if (e.code === 'Space') {
             const player = playerRef.current;
             if ((player.jumpsRemaining || 0) > 0) {
                 player.vel.y = JUMP_FORCE;
                 const isAirJump = (player.jumpsRemaining || 0) < 2;
                 player.jumpsRemaining = (player.jumpsRemaining || 0) - 1;
-                // Dust particle
                 particlesRef.current.push({
                     id: `jump_dust_${Date.now()}`,
                     type: EntityType.PARTICLE,
@@ -270,6 +303,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       if (e.code === 'Escape') {
           if (gameState === GameState.PLAYING) setGameState(GameState.PAUSED);
           else if (gameState === GameState.PAUSED) setGameState(GameState.PLAYING);
+          else if (gameState === GameState.SHOP) setGameState(GameState.PLAYING);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => keysRef.current[e.code] = false;
@@ -324,9 +358,17 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     player.vel.y += GRAVITY;
     player.pos.x += player.vel.x;
     if (player.pos.x < 0) player.pos.x = 0;
-    else if (player.pos.x + player.size.x > CANVAS_WIDTH) {
-        player.pos.x = 10;
-        onRoomChange("next");
+    
+    // Check for Boss Lock
+    const bossAlive = room.entities.some(e => e.type === EntityType.ENEMY && e.isBoss && !e.isDead);
+    if (player.pos.x + player.size.x > CANVAS_WIDTH) {
+        if (bossAlive) {
+            player.pos.x = CANVAS_WIDTH - player.size.x;
+            // Maybe add a visual hint
+        } else {
+            player.pos.x = 10;
+            onRoomChange("next");
+        }
     }
 
     room.entities.filter(e => e.type === EntityType.PLATFORM).forEach(plat => {
@@ -376,11 +418,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             }
         });
         if (checkCollision(player, item)) {
-            if (item.itemType === 'HEALTH') player.hp = Math.min(player.maxHp || 100, (player.hp || 0) + 25);
-            else if (item.itemType === 'RANGE_BOOST') player.attackRangeBonus = (player.attackRangeBonus || 0) + 15;
-            else if (item.itemType === 'RANGED_WEAPON') {
-                player.hasRangedWeapon = true;
-                player.attackRangeBonus = (player.attackRangeBonus || 0) + 5;
+            if (item.itemType === 'COIN') {
+                player.gold = (player.gold || 0) + (item.value || 1);
             }
             itemsRef.current.splice(i, 1);
         }
@@ -395,15 +434,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const enemyDamage = entity.damage || (10 + difficultyLevel * 2);
 
         // AI Logic
-        if (entity.color === COLOR_ENEMY_SKELETON) {
-            if (enemiesAreAggressive && dist < 60 && (entity.attackCooldown || 0) <= 0) {
+        if (entity.color === COLOR_ENEMY_SKELETON || entity.isBoss) {
+            if ((enemiesAreAggressive || entity.isBoss) && dist < (entity.isBoss ? 100 : 60) && (entity.attackCooldown || 0) <= 0) {
                 entity.attackCooldown = 120;
                 entity.vel.x = 0;
                 particlesRef.current.push({
                     id: `enemy_slash_${Date.now()}`,
                     type: EntityType.ATTACK_HITBOX,
-                    pos: { x: dx > 0 ? entity.pos.x + 30 : entity.pos.x - 30, y: entity.pos.y + 10 },
-                    size: { x: 30, y: 30 },
+                    pos: { x: dx > 0 ? entity.pos.x + (entity.isBoss ? 60 : 30) : entity.pos.x - 30, y: entity.pos.y + (entity.isBoss ? 40 : 10) },
+                    size: { x: entity.isBoss ? 60 : 30, y: entity.isBoss ? 60 : 30 },
                     vel: { x: 0, y: 0 },
                     color: 'transparent',
                     life: 15,
@@ -418,7 +457,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             }
         } else if (entity.color === COLOR_ENEMY_BAT) {
             if (dist < 250) {
-                // Dracky flight pattern
                 entity.pos.x += (dx / dist) * 1.5;
                 entity.pos.y += (dy / dist) * 1.5 + Math.sin(Date.now() / 200) * 0.5;
             }
@@ -516,21 +554,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             player.maxHp = (player.maxHp || 100) + 20;
             player.damageBonus = (player.damageBonus || 0) + 5;
         }
-        // Drop Logic
-        if (Math.random() < 0.4) {
-            const rand = Math.random();
-            let iType: ItemType = 'HEALTH';
-            let color = COLOR_ITEM_HEALTH;
-            if (rand > 0.7) { iType = 'RANGE_BOOST'; color = COLOR_ITEM_RANGE; }
-            if (rand > 0.9) { iType = 'RANGED_WEAPON'; color = COLOR_ITEM_WEAPON; }
+        
+        // Drop Coins logic
+        const dropCount = enemy.isBoss ? 10 : 1 + Math.floor(Math.random() * 2); 
+        for(let c=0; c<dropCount; c++) {
             itemsRef.current.push({
-                id: `item_${Date.now()}`,
+                id: `coin_${Date.now()}_${c}`,
                 type: EntityType.ITEM,
-                itemType: iType,
-                pos: { ...enemy.pos },
-                size: { x: 16, y: 16 },
-                vel: { x: (Math.random()-0.5)*2, y: -4 },
-                color: color
+                itemType: 'COIN',
+                value: enemy.isBoss ? 10 : 1,
+                pos: { x: enemy.pos.x + Math.random()*20, y: enemy.pos.y },
+                size: { x: 12, y: 12 },
+                vel: { x: (Math.random()-0.5)*4, y: -5 - Math.random()*3 },
+                color: COLOR_COIN
             });
         }
     };
@@ -587,8 +623,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                     }
                 });
             }
-            room.entities.forEach(w => {
-                if (w.type === EntityType.PLATFORM && checkCollision(p, w)) p.life = 0;
+            room.entities.filter(w => w.type === EntityType.PLATFORM).forEach(w => {
+                if (checkCollision(p, w)) p.life = 0;
             });
         } else if (p.type === EntityType.ATTACK_HITBOX) {
             p.life = (p.life || 0) - 1;
@@ -613,6 +649,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             } else if (p.owner === 'enemy') {
                 if (checkCollision(p, player)) {
                      if (player.isParrying && player.parryDirection === 'FWD') {
+                         // Blocked
                      } else if (hitFlashRef.current === 0) {
                          player.hp = Math.max(0, (player.hp || 0) - (p.damage || 10));
                          hitFlashRef.current = 30;
@@ -629,7 +666,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
     if (hitFlashRef.current > 0) hitFlashRef.current--;
     if ((player.hp || 0) <= 0) setGameState(GameState.GAME_OVER);
-    onUpdateStats(player.hp || 0, player.maxHp || 100, enemiesKilledRef.current);
+    onUpdateStats(player.hp || 0, player.maxHp || 100, enemiesKilledRef.current, player.gold || 0);
   }, [gameState, currentRoomRef, onRoomChange, onUpdateStats, setGameState, difficultyLevel]);
 
   // DRAGON QUEST STYLE RENDERING
@@ -641,7 +678,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const room = currentRoomRef.current;
     const player = playerRef.current;
 
-    // Background: Simplified gradients for classic feel
+    // Background
     const bgColor = ROOM_THEME_COLORS[room.theme] || '#0f172a';
     const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
     gradient.addColorStop(0, bgColor);
@@ -667,7 +704,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                     ctx.fillStyle = blockTheme.main;
                     ctx.fillRect(tx, ty, w, h);
                     
-                    // Pixel Border
                     ctx.fillStyle = 'rgba(0,0,0,0.3)';
                     ctx.fillRect(tx, ty, 1, h); // Left dark
                     ctx.fillRect(tx, ty, w, 1); // Top dark
@@ -679,39 +715,50 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 }
             }
         }
+        
+        // NPC
+        if (e.type === EntityType.NPC) {
+            ctx.save();
+            ctx.translate(e.pos.x + e.size.x/2, e.pos.y + e.size.y/2);
+            ctx.fillStyle = COLOR_NPC_MERCHANT;
+            ctx.fillRect(-10, -20, 20, 40);
+            ctx.fillStyle = '#fff';
+            // Turban
+            ctx.fillRect(-12, -24, 24, 8);
+            ctx.strokeStyle = '#fff';
+            ctx.strokeRect(-10, -20, 20, 40);
+            ctx.restore();
+            
+            // "W" Prompt
+            if (Math.abs(player.pos.x - e.pos.x) < 60) {
+                 ctx.font = '16px monospace';
+                 ctx.fillStyle = '#fff';
+                 ctx.fillText("[W]", e.pos.x, e.pos.y - 20);
+            }
+        }
     });
 
-    // Draw Items
+    // Draw Items (Coins)
     itemsRef.current.forEach(item => {
         const bob = Math.sin(Date.now() / 150) * 4;
         ctx.fillStyle = item.color;
         ctx.save();
-        ctx.translate(item.pos.x + 8, item.pos.y + 8 + bob);
+        ctx.translate(item.pos.x + 6, item.pos.y + 6 + bob);
         
-        // Item Border
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-
-        if (item.itemType === 'HEALTH') {
-            // Medicine Herb Bag shape
-            ctx.beginPath();
-            ctx.arc(0, 2, 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            // String
-            ctx.fillStyle = '#fde047';
-            ctx.fillRect(-2, -8, 4, 4);
-        } else {
-             // Orb
-            ctx.beginPath();
-            ctx.arc(0, 0, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
+        if (item.itemType === 'COIN') {
+             ctx.beginPath();
+             ctx.arc(0, 0, 6, 0, Math.PI * 2);
+             ctx.fill();
+             ctx.strokeStyle = '#fef08a';
+             ctx.stroke();
+             ctx.fillStyle = '#000';
+             ctx.font = '8px monospace';
+             ctx.fillText('G', -3, 3);
         }
         ctx.restore();
     });
 
-    // Draw Enemies (DQ Sprites Approximation)
+    // Draw Enemies
     room.entities.forEach(e => {
         if (e.type === EntityType.ENEMY && !e.isDead) {
             const bob = Math.sin(Date.now() / 200) * 2;
@@ -723,10 +770,18 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             
             // Outline
             ctx.lineWidth = 2;
-            ctx.strokeStyle = '#fff'; // White outline for classic sprite feel
+            ctx.strokeStyle = '#fff'; 
             ctx.fillStyle = e.color;
 
-            if (e.color === COLOR_ENEMY_SLIME) {
+            if (e.isBoss) {
+                // Boss visuals - Big generic monster with spikes
+                ctx.fillRect(-e.size.x/2, -e.size.y/2, e.size.x, e.size.y);
+                ctx.strokeRect(-e.size.x/2, -e.size.y/2, e.size.x, e.size.y);
+                ctx.fillStyle = '#000';
+                // Eyes
+                ctx.fillRect(-20, -10, 10, 10);
+                ctx.fillRect(10, -10, 10, 10);
+            } else if (e.color === COLOR_ENEMY_SLIME) {
                 // Teardrop Slime
                 ctx.beginPath();
                 ctx.moveTo(0, -15);
@@ -736,17 +791,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 ctx.stroke();
                 // Face
                 ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(-5, -2, 4, 0, Math.PI*2); ctx.fill(); // Eye L
-                ctx.beginPath(); ctx.arc(5, -2, 4, 0, Math.PI*2); ctx.fill(); // Eye R
-                ctx.fillStyle = '#000';
-                ctx.beginPath(); ctx.arc(-5, -2, 1, 0, Math.PI*2); ctx.fill(); 
-                ctx.beginPath(); ctx.arc(5, -2, 1, 0, Math.PI*2); ctx.fill();
-                // Smile
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.arc(0, 5, 5, 0, Math.PI); ctx.stroke();
+                ctx.beginPath(); ctx.arc(-5, -2, 4, 0, Math.PI*2); ctx.fill(); 
+                ctx.beginPath(); ctx.arc(5, -2, 4, 0, Math.PI*2); ctx.fill();
             } else if (e.color === COLOR_ENEMY_BAT) {
-                // Dracky Style
+                // Dracky
                 ctx.beginPath();
                 ctx.arc(0, 0, 10, 0, Math.PI * 2);
                 ctx.fill();
@@ -755,11 +803,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
                 ctx.fillStyle = e.color;
                 ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-20, -10); ctx.lineTo(-15, 5); ctx.fill(); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(20, -10); ctx.lineTo(15, 5); ctx.fill(); ctx.stroke();
-                // Face
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(-4, -2, 3, 3); ctx.fillRect(1, -2, 3, 3);
             } else {
-                // Generic Monster
                 ctx.fillRect(-e.size.x/2, -e.size.y/2, e.size.x, e.size.y);
                 ctx.strokeRect(-e.size.x/2, -e.size.y/2, e.size.x, e.size.y);
             }
@@ -770,42 +814,32 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             if ((e.hp || 0) < (e.maxHp || 100)) {
                 ctx.fillStyle = '#000';
                 ctx.fillRect(e.pos.x, e.pos.y - 15, e.size.x, 4);
-                ctx.fillStyle = '#facc15'; // DQ HP Color often yellow/orange
-                const hpPct = Math.max(0, (e.hp || 0) / (entityDamageMap(e) * 3 || 50)); 
+                ctx.fillStyle = '#facc15'; 
+                const hpPct = Math.max(0, (e.hp || 0) / (entityDamageMap(e) * (e.isBoss ? 15 : 3) || 50)); 
                 ctx.fillRect(e.pos.x, e.pos.y - 15, e.size.x * hpPct, 4);
             }
         }
     });
 
-    // Draw Player (DQ Hero)
+    // Draw Player
     if (hitFlashRef.current % 4 < 2) {
         const px = player.pos.x;
         const py = player.pos.y;
         
-        // Cape/Hair back
-        ctx.fillStyle = '#1e3a8a';
+        ctx.fillStyle = '#1e3a8a'; // Cape
         ctx.fillRect(px + 4, py + 10, 24, 30);
-
-        // Body (Blue Tunic)
-        ctx.fillStyle = player.color;
+        ctx.fillStyle = player.color; // Body
         ctx.fillRect(px + 8, py + 18, 16, 20);
-        
-        // Armor (Gold chestplate)
-        ctx.fillStyle = COLOR_PLAYER_ARMOR;
+        ctx.fillStyle = COLOR_PLAYER_ARMOR; // Armor
         ctx.fillRect(px + 8, py + 18, 16, 12);
-
-        // Head/Helmet
         ctx.fillStyle = '#fcd34d'; // Skin
         ctx.fillRect(px + 8, py, 16, 16);
-        ctx.fillStyle = '#1d4ed8'; // Blue Helmet/Bandana
+        ctx.fillStyle = '#1d4ed8'; // Helmet
         ctx.fillRect(px + 6, py - 2, 20, 8); 
-        // Horns on helmet
-        ctx.fillStyle = '#fef08a';
+        ctx.fillStyle = '#fef08a'; // Horns
         ctx.fillRect(px + 4, py - 6, 4, 8);
         ctx.fillRect(px + 24, py - 6, 4, 8);
-
-        // Face
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = '#000'; // Eyes
         const eyeX = player.facing === 1 ? px + 20 : px + 10;
         ctx.fillRect(eyeX, py + 8, 2, 4);
 
@@ -825,7 +859,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
     }
 
-    // Draw Particles & Projectiles
+    // Draw Particles
     particlesRef.current.forEach(p => {
         if (p.type === EntityType.PROJECTILE) {
             ctx.fillStyle = p.color;
@@ -841,7 +875,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
     });
     
-    // Weapon Swing (Comic Slash)
+    // Attack Flash
     if ((player.attackCooldown || 0) > 15) {
         ctx.strokeStyle = '#fff'; 
         ctx.lineWidth = 4;
@@ -850,7 +884,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         const cy = player.pos.y + player.size.y / 2;
         const range = 40 + (player.attackRangeBonus || 0);
         
-        // Draw the "Whoosh" lines
         if (lastAttackDirRef.current === 'UP') {
             ctx.arc(cx, cy, range, Math.PI + 0.5, -0.5); 
         } else if (lastAttackDirRef.current === 'DOWN') {

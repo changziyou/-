@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GameCanvas } from './components/GameCanvas';
-import { GameState, Room, EntityType, LogEntry, Entity, TalentID } from './types';
+import { GameState, Room, EntityType, LogEntry, Entity, TalentID, ItemType } from './types';
 import { 
     CANVAS_WIDTH, 
     CANVAS_HEIGHT, 
@@ -10,7 +10,12 @@ import {
     COLOR_ENEMY_SLIME,
     COLOR_ENEMY_GHOST,
     COLOR_ENEMY_MAGE,
-    TILE_SIZE
+    COLOR_ENEMY_BOSS,
+    COLOR_NPC_MERCHANT,
+    TILE_SIZE,
+    PRICE_HEAL,
+    PRICE_DAMAGE,
+    PRICE_RANGE
 } from './constants';
 import { generateLore } from './services/geminiService';
 
@@ -31,97 +36,7 @@ const createRoom1 = (): Room => ({
   ]
 });
 
-const createRoom2 = (): Room => ({
-  id: 'room_spire',
-  name: 'Tower of Trials',
-  description: 'Ancient bricks.',
-  width: CANVAS_WIDTH,
-  height: CANVAS_HEIGHT,
-  theme: 'tower',
-  entities: [
-    { id: 'p1', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 256, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'p2', type: EntityType.PLATFORM, pos: { x: 256, y: 450 }, size: { x: 128, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'p3', type: EntityType.PLATFORM, pos: { x: 416, y: 350 }, size: { x: 128, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'p4', type: EntityType.PLATFORM, pos: { x: 600, y: 550 }, size: { x: 200, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'e1', type: EntityType.ENEMY, pos: { x: 400, y: 100 }, size: { x: 24, y: 24 }, vel: {x:0, y:0}, color: COLOR_ENEMY_BAT, hp: 20, damage: 10 },
-    { id: 'e2', type: EntityType.ENEMY, pos: { x: 500, y: 150 }, size: { x: 24, y: 24 }, vel: {x:0, y:0}, color: COLOR_ENEMY_BAT, hp: 20, damage: 10 },
-  ]
-});
-
-const createRoom3 = (): Room => ({
-  id: 'room_cistern',
-  name: 'Slime Jungle',
-  description: 'Sticky and green.',
-  width: CANVAS_WIDTH,
-  height: CANVAS_HEIGHT,
-  theme: 'cistern',
-  entities: [
-    { id: 'p1', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 800, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'p2', type: EntityType.PLATFORM, pos: { x: 96, y: 416 }, size: { x: 128, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'p3', type: EntityType.PLATFORM, pos: { x: 288, y: 320 }, size: { x: 192, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'p4', type: EntityType.PLATFORM, pos: { x: 608, y: 224 }, size: { x: 160, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-    { id: 'e1', type: EntityType.ENEMY, pos: { x: 350, y: 270 }, size: { x: 32, y: 32 }, vel: {x:0, y:0}, color: COLOR_ENEMY_SLIME, hp: 40, damage: 15 },
-    { id: 'e2', type: EntityType.ENEMY, pos: { x: 650, y: 170 }, size: { x: 32, y: 32 }, vel: {x:0, y:0}, color: COLOR_ENEMY_SLIME, hp: 40, damage: 15 },
-    { id: 'e3', type: EntityType.ENEMY, pos: { x: 150, y: 500 }, size: { x: 32, y: 32 }, vel: {x:0, y:0}, color: COLOR_ENEMY_SLIME, hp: 40, damage: 15 },
-  ]
-});
-
-const createRoom4 = (): Room => ({
-    id: 'room_summit',
-    name: 'Snow Summit',
-    description: 'Cold winds.',
-    width: CANVAS_WIDTH,
-    height: CANVAS_HEIGHT,
-    theme: 'summit',
-    entities: [
-      { id: 'p1', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 160, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-      { id: 'p2', type: EntityType.PLATFORM, pos: { x: 192, y: 448 }, size: { x: 96, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-      { id: 'p3', type: EntityType.PLATFORM, pos: { x: 352, y: 352 }, size: { x: 96, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-      { id: 'p4', type: EntityType.PLATFORM, pos: { x: 512, y: 256 }, size: { x: 96, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-      { id: 'p5', type: EntityType.PLATFORM, pos: { x: 640, y: 550 }, size: { x: 160, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-      { id: 'e1', type: EntityType.ENEMY, pos: { x: 200, y: 200 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_GHOST, hp: 50, damage: 18 },
-      { id: 'e2', type: EntityType.ENEMY, pos: { x: 500, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_GHOST, hp: 50, damage: 18 },
-    ]
-});
-
-const createRoom5 = (): Room => ({
-    id: 'room_sanctum',
-    name: 'Lava Cave',
-    description: 'Heat rises.',
-    width: CANVAS_WIDTH,
-    height: CANVAS_HEIGHT,
-    theme: 'volcano',
-    entities: [
-        { id: 'p1', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 256, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'p2', type: EntityType.PLATFORM, pos: { x: 320, y: 448 }, size: { x: 192, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'p3', type: EntityType.PLATFORM, pos: { x: 608, y: 352 }, size: { x: 192, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'e1', type: EntityType.ENEMY, pos: { x: 350, y: 410 }, size: { x: 32, y: 48 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 60, damage: 20 },
-        { id: 'e2', type: EntityType.ENEMY, pos: { x: 650, y: 310 }, size: { x: 32, y: 48 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 60, damage: 20 },
-        { id: 'e3', type: EntityType.ENEMY, pos: { x: 100, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_GHOST, hp: 50, damage: 20 },
-    ]
-});
-
-const createRoom6 = (): Room => ({
-    id: 'room_abyss',
-    name: 'Dark World',
-    description: 'The void stares back.',
-    width: CANVAS_WIDTH,
-    height: CANVAS_HEIGHT,
-    theme: 'void',
-    entities: [
-        { id: 'p1', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 128, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'p2', type: EntityType.PLATFORM, pos: { x: 160, y: 448 }, size: { x: 64, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'p3', type: EntityType.PLATFORM, pos: { x: 256, y: 352 }, size: { x: 64, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'p4', type: EntityType.PLATFORM, pos: { x: 352, y: 256 }, size: { x: 128, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'p5', type: EntityType.PLATFORM, pos: { x: 544, y: 256 }, size: { x: 128, y: 32 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'p6', type: EntityType.PLATFORM, pos: { x: 704, y: 550 }, size: { x: 96, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
-        { id: 'e1', type: EntityType.ENEMY, pos: { x: 400, y: 200 }, size: { x: 32, y: 48 }, vel: {x:0, y:0}, color: COLOR_ENEMY_SKELETON, hp: 100, patrolStart: 350, patrolEnd: 450, damage: 25 },
-        { id: 'e2', type: EntityType.ENEMY, pos: { x: 200, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 80, damage: 25 },
-        { id: 'e3', type: EntityType.ENEMY, pos: { x: 600, y: 100 }, size: { x: 30, y: 40 }, vel: {x:0, y:0}, color: COLOR_ENEMY_MAGE, hp: 80, damage: 25 },
-    ]
-});
-
-// Helper to generate levels 7-16
+// Helper to generate regular levels
 const generateProceduralRoom = (levelIndex: number): Room => {
     const themes: Room['theme'][] = ['dungeon', 'tower', 'cistern', 'summit', 'volcano', 'void'];
     const theme = themes[levelIndex % themes.length];
@@ -186,34 +101,77 @@ const generateProceduralRoom = (levelIndex: number): Room => {
     };
 };
 
-const BASE_GENERATORS = [createRoom1, createRoom2, createRoom3, createRoom4, createRoom5, createRoom6];
-const ALL_GENERATORS = [...BASE_GENERATORS];
-for(let i=6; i<16; i++) {
-    ALL_GENERATORS.push(() => generateProceduralRoom(i));
-}
+const createBossRoom = (levelIndex: number): Room => {
+    return {
+        id: `boss_${levelIndex}`,
+        name: 'The Keepers Gate',
+        description: 'A massive presence blocks the way.',
+        width: CANVAS_WIDTH,
+        height: CANVAS_HEIGHT,
+        theme: 'tower',
+        entities: [
+             { id: 'p_floor', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 800, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+             { id: 'boss_1', type: EntityType.ENEMY, pos: { x: 600, y: 400 }, size: { x: 100, y: 150 }, vel: {x:0, y:0}, color: COLOR_ENEMY_BOSS, isBoss: true, hp: 300 + (levelIndex * 50), damage: 25 + levelIndex }
+        ]
+    };
+};
+
+const createShopRoom = (levelIndex: number): Room => {
+    return {
+        id: `shop_${levelIndex}`,
+        name: 'Travelers Rest',
+        description: 'Safe haven.',
+        width: CANVAS_WIDTH,
+        height: CANVAS_HEIGHT,
+        theme: 'merchant',
+        entities: [
+             { id: 'p_floor', type: EntityType.PLATFORM, pos: { x: 0, y: 550 }, size: { x: 800, y: 64 }, vel: {x:0, y:0}, color: COLOR_PLATFORM },
+             { id: 'npc_merch', type: EntityType.NPC, pos: { x: 400, y: 470 }, size: { x: 32, y: 48 }, vel: {x:0, y:0}, color: COLOR_NPC_MERCHANT }
+        ]
+    };
+};
 
 // --- Main App ---
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
-  const [stats, setStats] = useState({ hp: 100, maxHp: 100, score: 0 });
+  const [stats, setStats] = useState({ hp: 100, maxHp: 100, score: 0, gold: 0 });
   const [currentRoomName, setCurrentRoomName] = useState<string>('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [oracleLoading, setOracleLoading] = useState(false);
   const [currentRoomIndex, setCurrentRoomIndex] = useState(0);
   const [activeTalent, setActiveTalent] = useState<TalentID | null>(null);
+  const [purchasedItem, setPurchasedItem] = useState<ItemType | null>(null);
 
   const currentRoomRef = useRef<Room>(createRoom1());
 
   const handleRoomChange = (direction: string) => {
-    const nextIndex = (currentRoomIndex + 1) % ALL_GENERATORS.length;
+    const nextIndex = currentRoomIndex + 1;
     setCurrentRoomIndex(nextIndex);
     
-    if (nextIndex > 0 && nextIndex % 3 === 0) {
+    // Logic: 
+    // If index % 10 == 9 -> Boss Room (Level 10, 20...) 
+    // If index % 10 == 0 && index > 0 -> Shop Room (Level 11, 21...)
+    // Else -> Normal Procedural Room
+    
+    // Special handling for Level 10 (index 9), 20 (index 19) -> Boss
+    // Special handling for Level 11 (index 10), 21 (index 20) -> Shop
+    
+    let newRoom: Room;
+    
+    if ((nextIndex + 1) % 10 === 0) {
+        newRoom = createBossRoom(nextIndex);
+    } else if (nextIndex > 0 && nextIndex % 10 === 0) {
+        newRoom = createShopRoom(nextIndex);
+    } else {
+        newRoom = generateProceduralRoom(nextIndex);
+    }
+
+    // Talent logic every 3 rooms (excluding boss/shop special cases maybe? stick to simple rule)
+    if (nextIndex > 0 && nextIndex % 3 === 0 && (nextIndex+1) % 10 !== 0 && nextIndex % 10 !== 0) {
         setGameState(GameState.PROMOTION);
     }
     
-    const newRoom = ALL_GENERATORS[nextIndex]();
     currentRoomRef.current = newRoom;
     setCurrentRoomName(newRoom.name);
     
@@ -227,8 +185,19 @@ const App: React.FC = () => {
       setTimeout(() => setActiveTalent(null), 100);
   };
 
-  const updateStats = (hp: number, maxHp: number, score: number) => {
-    setStats({ hp, maxHp, score });
+  const handlePurchase = (item: ItemType, price: number) => {
+      if (stats.gold >= price) {
+          setStats(prev => ({ ...prev, gold: prev.gold - price }));
+          setPurchasedItem(item);
+          addLog('Merchant', 'Pleasure doing business.');
+          setTimeout(() => setPurchasedItem(null), 100);
+      } else {
+          addLog('System', 'Not enough gold!');
+      }
+  };
+
+  const updateStats = (hp: number, maxHp: number, score: number, gold: number) => {
+    setStats({ hp, maxHp, score, gold });
   };
 
   const addLog = (sender: LogEntry['sender'], text: string) => {
@@ -262,7 +231,7 @@ const App: React.FC = () => {
 
   const startGame = () => {
     setGameState(GameState.PLAYING);
-    setStats({ hp: 100, maxHp: 100, score: 0 });
+    setStats({ hp: 100, maxHp: 100, score: 0, gold: 0 });
     setActiveTalent(null);
     setCurrentRoomIndex(0);
     currentRoomRef.current = createRoom1();
@@ -287,9 +256,9 @@ const App: React.FC = () => {
                 <span>HP:</span>
                 <span>{Math.round(stats.hp)} / {stats.maxHp}</span>
             </div>
-            <div className="flex justify-between">
-                <span>EXP:</span>
-                <span>{stats.score}</span>
+            <div className="flex justify-between text-yellow-300">
+                <span>GOLD:</span>
+                <span>{stats.gold} G</span>
             </div>
         </div>
         
@@ -322,6 +291,7 @@ const App: React.FC = () => {
           onOracleTrigger={handleOracleTrigger}
           difficultyLevel={currentRoomIndex}
           activeTalent={activeTalent}
+          purchasedItem={purchasedItem}
         />
 
         {/* Start Screen */}
@@ -347,7 +317,7 @@ const App: React.FC = () => {
           <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-20">
             <div className="dq-window p-8 text-center border-red-600">
                 <h2 className="text-4xl font-dq text-red-500 mb-4">THOU HAST DIED</h2>
-                <p className="text-white mb-8 font-dq text-lg">Thy deeds shall be remembered.</p>
+                <p className="text-white mb-8 font-dq text-lg">Thy gold is lost.</p>
                 <button 
                   onClick={startGame}
                   className="px-6 py-2 bg-black text-white border-2 border-white font-dq hover:text-yellow-400"
@@ -356,6 +326,53 @@ const App: React.FC = () => {
                 </button>
             </div>
           </div>
+        )}
+
+        {/* Shop Screen */}
+        {gameState === GameState.SHOP && (
+            <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-40 p-8">
+                <div className="dq-window p-6 w-full max-w-lg bg-black text-white">
+                    <div className="flex justify-between items-center mb-6 border-b border-white pb-2">
+                        <span className="text-yellow-400 font-dq text-2xl">MERCHANT</span>
+                        <span className="font-dq text-xl">Gold: {stats.gold}</span>
+                    </div>
+                    
+                    <div className="space-y-4">
+                        <button 
+                            onClick={() => handlePurchase('HEALTH', PRICE_HEAL)}
+                            className="w-full flex justify-between p-4 border border-white hover:bg-gray-900"
+                        >
+                            <span className="font-dq">Medicinal Herb (Full Heal)</span>
+                            <span className="text-yellow-300 font-dq">{PRICE_HEAL} G</span>
+                        </button>
+                        
+                        <button 
+                            onClick={() => handlePurchase('RANGED_WEAPON', PRICE_DAMAGE)}
+                            className="w-full flex justify-between p-4 border border-white hover:bg-gray-900"
+                        >
+                            <span className="font-dq">Power Seed (+Damage)</span>
+                            <span className="text-yellow-300 font-dq">{PRICE_DAMAGE} G</span>
+                        </button>
+                        
+                        <button 
+                            onClick={() => handlePurchase('RANGE_BOOST', PRICE_RANGE)}
+                            className="w-full flex justify-between p-4 border border-white hover:bg-gray-900"
+                        >
+                            <span className="font-dq">Long Sword (+Range)</span>
+                            <span className="text-yellow-300 font-dq">{PRICE_RANGE} G</span>
+                        </button>
+                    </div>
+
+                    <div className="mt-8 text-center">
+                        <button 
+                            onClick={() => setGameState(GameState.PLAYING)}
+                            className="text-gray-400 hover:text-white font-dq"
+                        >
+                            [Leave Shop]
+                        </button>
+                    </div>
+                </div>
+            </div>
         )}
         
         {/* Promotion Screen (Skill Window) */}
