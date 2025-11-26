@@ -1,12 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    console.warn("API Key not found");
+  try {
+    // Safety check for browser environments where process might not be defined
+    if (typeof process === 'undefined' || !process.env.API_KEY) {
+      console.warn("API Key not found or process is undefined");
+      return null;
+    }
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  } catch (e) {
+    console.error("Error initializing GenAI client:", e);
     return null;
   }
-  return new GoogleGenAI({ apiKey });
 };
 
 export const generateLore = async (
@@ -21,13 +26,12 @@ export const generateLore = async (
   const hpPercent = Math.round((currentHp / maxHp) * 100);
   
   const prompt = `
-    Context: The player is playing a dark fantasy Metroidvania game called "Echoes of the Spire".
+    Context: The player is playing a retro JRPG-styled Metroidvania game called "Quest for the Spire" (inspired by Dragon Quest and Terraria).
     Current Location: ${roomName}.
-    Player Status: ${hpPercent}% Health, ${enemiesDefeated} enemies defeated this run.
+    Player Status: ${hpPercent}% Health, ${enemiesDefeated} enemies defeated.
     
-    Task: You are an ancient, cryptic spirit residing in the tower. 
-    Provide a short, atmospheric description of the current room or a cryptic hint about the player's struggle.
-    If health is low, be ominous. If health is high, be encouraging but wary.
+    Task: You are the narrator (Dungeon Master). Provide a short, atmospheric description of the current location or a warning about the monsters nearby.
+    Style: Classic RPG narrator. somewhat archaic but clear.
     
     Output requirement: Plain text, maximum 2 sentences. Language: Chinese (Simplified).
   `;
@@ -37,30 +41,9 @@ export const generateLore = async (
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
-    return response.text || "塔中的迷雾太浓了...";
+    return response.text || "这里弥漫着不祥的气息...";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "古灵的声音被静电干扰了...";
+    return "一种神秘的力量阻挡了你的感知...";
   }
 };
-
-export const generateBossTaunt = async (bossName: string): Promise<string> => {
-    const ai = getClient();
-    if (!ai) return "Intruder...";
-  
-    const prompt = `
-      Context: A boss battle in a dark fantasy game. Boss Name: ${bossName}.
-      Task: Write a short, menacing taunt line for the boss to say before the fight starts.
-      Output requirement: Plain text, 1 sentence. Language: Chinese (Simplified).
-    `;
-  
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-      return response.text || "受死吧！";
-    } catch (error) {
-      return "......";
-    }
-  };
